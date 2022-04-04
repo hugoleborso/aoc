@@ -9,66 +9,124 @@ import (
 )
 
 type scan []string
+type lines [][2][2]int
+type grid [][]int
 
 func main() {
 	s := newScanFromFile("input.txt")
 	//s.print()
-	inputs := strings.Split(s[0], ",")
-
-	result := findScore(s, inputs)
-
-	fmt.Println("Result : ", result)
-
+	lines := getLinesFromScan(s)
+	lines = filterHorVerLines(lines)
+	//fmt.Println(lines)
+	fmt.Println("Result :", lines.getOverlaps(false))
 }
 
-func findScore(s scan, inputs []string) int {
-	bingoBoardsValues, bingoBoardsValuesFound := createBingoBoards(s)
-	for _, n := range inputs {
-		fmt.Println(n)
-		m, _ := strconv.Atoi(n)
-		for b, board := range bingoBoardsValues {
-			for i, line := range board {
-				for j, val := range line {
-					if m == val {
-						bingoBoardsValuesFound[b][i][j] = true
-					}
-				}
+func getLinesFromScan(s scan) lines {
+	lines := lines{}
+	for _, textLine := range s {
+		s1 := strings.Split(textLine, " -> ")
+		line := [2][2]int{}
+		for i, s2 := range s1 {
+			s3 := strings.Split(s2, ",")
+			for j, strVar := range s3 {
+				intVar, _ := strconv.Atoi(strVar)
+				line[i][j] = intVar
 			}
 		}
-		winningBoard := checkBoards(bingoBoardsValuesFound)
+		lines = append(lines, line)
+	}
+	return lines
+}
 
-		if winningBoard != -1 {
-			return m * unMarkedSum(winningBoard, bingoBoardsValues, bingoBoardsValuesFound)
+func filterHorVerLines(l lines) lines {
+	outputLines := lines{}
+	for _, line := range l {
+		if line[0][0] == line[1][0] || line[0][1] == line[1][1] {
+			outputLines = append(outputLines, line)
 		}
 	}
-	return 0
+	return outputLines
+}
+
+func (l lines) getDims() (x, y int) {
+	maxX := 0
+	maxY := 0
+
+	for _, line := range l {
+		if line[0][0] > maxX {
+			maxX = line[0][0]
+		}
+		if line[1][0] > maxX {
+			maxX = line[1][0]
+		}
+		if line[0][1] > maxY {
+			maxY = line[0][1]
+		}
+		if line[1][0] > maxY {
+			maxY = line[1][1]
+		}
+	}
+	return maxX, maxY
+}
+
+func (l lines) getOverlaps(print bool) int {
+	x, y := l.getDims()
+
+	grid := grid{}
+	for i := 0; i < y+1; i++ {
+		grid = append(grid, make([]int, x+1))
+	}
+
+	for _, line := range l {
+		distX := line[1][0] - line[0][0]
+		distY := line[1][1] - line[0][1]
+
+		if distX > 0 {
+			for i := 0; i <= distX; i++ {
+				grid[line[0][1]][line[0][0]+i]++
+			}
+		} else if distX < 0 {
+			for i := 0; i <= -distX; i++ {
+				grid[line[0][1]][line[0][0]-i]++
+			}
+		}
+		if distY > 0 {
+			for j := 0; j <= distY; j++ {
+				grid[line[0][1]+j][line[0][0]]++
+			}
+		} else if distY < 0 {
+			for j := 0; j <= -distY; j++ {
+				grid[line[0][1]-j][line[0][0]]++
+			}
+		}
+
+	}
+	if print {
+		grid.print()
+	}
+
+	count := 0
+	for _, line := range grid {
+		for _, val := range line {
+			if val > 1 {
+				count++
+			}
+		}
+	}
+
+	return count
+}
+
+func (g grid) print() {
+	for _, l := range g {
+		fmt.Println(l)
+	}
 }
 
 func (s scan) print() {
 	for i, info := range s {
 		fmt.Println(i, info)
 	}
-}
-
-func createBingoBoards(s scan) ([][5][5]int, [][5][5]bool) {
-	bingoBoardsValues := [][5][5]int{}
-	bingoBoardsValuesFound := [][5][5]bool{}
-
-	for i, line := range s {
-		if (i-2)%6 == 0 {
-			bingoBoardsValues = append(bingoBoardsValues, [5][5]int{})
-			bingoBoardsValuesFound = append(bingoBoardsValuesFound, [5][5]bool{})
-		}
-
-		if i > 1 && (i-1)%6 != 0 {
-			cline := strings.Split(line, " ")
-			for k, val := range cline {
-				intBit, _ := strconv.Atoi(string(val))
-				bingoBoardsValues[(i-2)/6][(i-2)%6][k] = intBit
-			}
-		}
-	}
-	return bingoBoardsValues, bingoBoardsValuesFound
 }
 
 func newScanFromFile(filename string) scan {
@@ -82,29 +140,4 @@ func newScanFromFile(filename string) scan {
 	s := strings.Split(string(bs), "\r\n")
 
 	return s
-}
-
-func checkBoards(bingoBoardsValuesFound [][5][5]bool) int {
-	for n, board := range bingoBoardsValuesFound {
-		for i, line := range board {
-			if line == [5]bool{true, true, true, true, true} {
-				return n
-			} else if [5]bool{board[0][i], board[1][i], board[2][i], board[3][i], board[4][i]} == [5]bool{true, true, true, true, true} {
-				return n
-			}
-		}
-	}
-	return -1
-}
-
-func unMarkedSum(boardNb int, bingoBoardsValues [][5][5]int, bingoBoardsValuesFound [][5][5]bool) int {
-	sum := 0
-	for i, line := range bingoBoardsValuesFound[boardNb] {
-		for j, val := range line {
-			if val == false {
-				sum = sum + bingoBoardsValues[boardNb][i][j]
-			}
-		}
-	}
-	return sum
 }
